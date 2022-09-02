@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}
+      <title>
+     {% if is_edit %}
+     Редактировать запись
+     {% else %}
+     Добавить запись
+     {% endif %}
+      </title>
+{% endblock %}
+
+{% block content %}
+  <body>
+    <main>
+      <div class="container py-5">
+        <div class="row justify-content-center">
+          <div class="col-md-8 p-5">
+            <div class="card">
+              <div class="card-header">
+                  {% if is_edit %}
+                    Редактировать пост
+                  {% else %}
+                    Добавить запись
+                  {% endif %}
+              </div>
+              <div class="card-body">
+                <form method="POST">
+                  {% csrf_token %}
+                  <div class="form-group row my-3 p-3">
+                    <label for="id_text">
+                      {{ form.text.label_tag }}
+                      <span class="required text-danger" >*</span>
+                    </label>
+                    {{ form.text }}
+                    <small id="id_text-help" class="form-text text-muted">
+                      {{ form.text.help_text }}
+                    </small>
+                  </div>
+                  <div class="form-group row my-3 p-3">
+                    <label for="id_group">
+                      {{ form.group.label_tag }}
+                    </label>
+                    <select name="group" class="form-control" id="id_group">
+                      <option value="" selected>---------</option>
+                      <option value= {{ form.group }}</option>
+                    </select>
+                    <small id="id_group-help" class="form-text text-muted">
+                      {{ form.group.help_text }}
+                    </small>
+                  </div>
+                  <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">
+                      {% if is_edit %}
+                       Редактировать пост
+                      {% else %}
+                       Добавить пост
+                      {% endif %}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+{% endblock %}
