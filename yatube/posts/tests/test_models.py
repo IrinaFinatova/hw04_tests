@@ -46,7 +46,7 @@ class PostModelTest(TestCase):
                     post._meta.get_field(field).help_text, expected_value)
 
     def test_models_have_correct_object_names(self):
-        """Проверяем, что у моделей корректно работает __str__."""
+        """Проверяем корректную работу __str__."""
         post = PostModelTest.post
         group = PostModelTest.group
         str_object_dict = {post.text[:15]: str(post),

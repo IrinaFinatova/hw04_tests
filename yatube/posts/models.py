@@ -6,9 +6,9 @@ User = get_user_model()
 
 class Group(models.Model):
     title = models.CharField(max_length=200,
-                             verbose_name="Название группы")
-    slug = models.SlugField(unique=True, verbose_name="Относительный адрес")
-    description = models.TextField(verbose_name="Описание группы")
+                             verbose_name='Название группы')
+    slug = models.SlugField(unique=True, verbose_name='Относительный адрес')
+    description = models.TextField(verbose_name='Описание группы')
 
     def __str__(self):
         return self.title

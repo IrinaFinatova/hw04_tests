@@ -37,23 +37,19 @@ class PostViewTest(TestCase):
                       reverse('posts:profile',
                               kwargs={'username': self.post.author})]
         for page in pages_list:
-            response = self.authorized_client.get(page)
-            first_object = response.context['page_obj'][0]
-            post_text_0 = first_object.text
-            post_group_0 = first_object.group
-            post_author_0 = first_object.author
-            self.assertEqual(post_text_0, self.post.author)
-            self.assertEqual(post_author_0, self.post.text)
-            self.assertEqual(post_group_0, self.post.group)
+            first_object = self.authorized_client.get(page).context['page_obj'][0]
+            self.assertEqual(first_object.author, self.post.author)
+            self.assertEqual(first_object.text, self.post.text)
+            self.assertEqual(first_object.group, self.post.group)
 
     def test_post_detail_page_show_correct_context(self):
         """Шаблон task_detail сформирован с правильным контекстом."""
         response = (self.authorized_client.
                     get(reverse('posts:post_detail',
-                                kwargs={'post_id': self.post.id})))
-        self.assertEqual(response.context.get('post').group, self.post.group)
-        self.assertEqual(response.context.get('post').text, self.post.text)
-        self.assertEqual(response.context.get('post').author, self.post.author)
+                                kwargs={'post_id': self.post.id}))).context.get('post')
+        self.assertEqual(response.group, self.post.group)
+        self.assertEqual(response.text, self.post.text)
+        self.assertEqual(response.author, self.post.author)
 
     def test_create_page_show_correct_context(self):
         """Шаблон create сформирован с правильным контекстом."""
@@ -65,6 +61,10 @@ class PostViewTest(TestCase):
             with self.subTest(value=value):
                 form_field = response.context.get('form').fields.get(value)
                 self.assertIsInstance(form_field, expected)
+        last = Post.objects.latest('id')
+        self.assertEqual(last.group, self.post.group)
+        self.assertEqual(last.text, self.post.text)
+        self.assertEqual(last.author, self.post.author)
 
     def test_edit_page_show_correct_context(self):
         """Шаблон edit сформирован с правильным контекстом."""
@@ -79,6 +79,11 @@ class PostViewTest(TestCase):
                 form_field = response.context.get('form').fields.get(value)
                 self.assertIsInstance(form_field, expected)
         self.assertEqual(response.context.get('post').text, self.post.text)
+        last = Post.objects.latest('id')
+        self.assertEqual(last.group, self.post.group)
+        self.assertEqual(last.text, self.post.text)
+        self.assertEqual(last.author, self.post.author)
+        self.assertFalse(Post.objects.filter(group=self.group_new.id).exists())
 
     def test_post_accessory_group(self):
         self.assertTrue(Post.objects.filter(group=self.group.id).exists())
@@ -86,10 +91,9 @@ class PostViewTest(TestCase):
 
     def test_pagintor_index_group_list_profile(self):
         """Тестируем пагинатор на страницах index, group_list и profile"""
-        for i in range(12):
-            Post.objects.create(author=self.author,
-                                text=f'пост {i}',
-                                group=self.group)
+        Post.objects.bulk_create(Post(author=self.author,
+                                      text=f'пост {i}',
+                                      group=self.group) for i in range(12))
         pages_list = [reverse('posts:index'),
                       reverse('posts:group_list',
                               kwargs={'slug': self.group.slug}),
