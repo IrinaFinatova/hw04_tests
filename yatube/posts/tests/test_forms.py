@@ -29,7 +29,7 @@ class PostCreateFormTests(TestCase):
         """Валидная форма создает запись в Post."""
         posts_count = Post.objects.count()
         form_data = {
-            'text': 'тестовый текст',
+            'text': 'тестовый текст созданный',
             'group': self.group.id}
         response = self.authorized_client.post(
             reverse('posts:post_create'),
@@ -39,11 +39,11 @@ class PostCreateFormTests(TestCase):
             response, reverse('posts:profile',
                               kwargs={'username': self.author}))
         self.assertEqual(Post.objects.count(), posts_count + 1)
-        self.assertTrue(Post.objects.filter(text='тестовый текст',
+        self.assertTrue(Post.objects.filter(text='тестовый текст созданный',
                                             group=self.group.id).exists())
         last = Post.objects.latest('pub_date')
         self.assertEqual(last.group, self.post.group)
-        self.assertEqual(last.text, self.post.text)
+        self.assertEqual(last.text, 'тестовый текст созданный')
         self.assertEqual(last.author, self.post.author)
 
     def test_edit_post(self):
