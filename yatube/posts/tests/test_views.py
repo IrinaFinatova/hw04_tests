@@ -37,11 +37,10 @@ class PostViewTest(TestCase):
                       reverse('posts:profile',
                               kwargs={'username': self.post.author})]
         for page in pages_list:
-            first_object = self.authorized_
-            client.get(page).context['page_obj'][0]
-            self.assertEqual(first_object.author, self.post.author)
-            self.assertEqual(first_object.text, self.post.text)
-            self.assertEqual(first_object.group, self.post.group)
+            first_obj = self.authorized_client.get(page).context['page_obj'][0]
+            self.assertEqual(first_obj.author, self.post.author)
+            self.assertEqual(first_obj.text, self.post.text)
+            self.assertEqual(first_obj.group, self.post.group)
 
     def test_post_detail_page_show_correct_context(self):
         """Шаблон task_detail сформирован с правильным контекстом."""
