@@ -37,8 +37,8 @@ class PostViewTest(TestCase):
                       reverse('posts:profile',
                               kwargs={'username': self.post.author})]
         for page in pages_list:
-            first_object = self.authorized_client.get(
-                page).context['page_obj'][0]
+            first_object = self.authorized_
+            client.get(page).context['page_obj'][0]
             self.assertEqual(first_object.author, self.post.author)
             self.assertEqual(first_object.text, self.post.text)
             self.assertEqual(first_object.group, self.post.group)
@@ -63,10 +63,6 @@ class PostViewTest(TestCase):
             with self.subTest(value=value):
                 form_field = response.context.get('form').fields.get(value)
                 self.assertIsInstance(form_field, expected)
-        last = Post.objects.latest('pub_date')
-        self.assertEqual(last.group, self.post.group)
-        self.assertEqual(last.text, self.post.text)
-        self.assertEqual(last.author, self.post.author)
 
     def test_edit_page_show_correct_context(self):
         """Шаблон edit сформирован с правильным контекстом."""
@@ -81,11 +77,6 @@ class PostViewTest(TestCase):
                 form_field = response.context.get('form').fields.get(value)
                 self.assertIsInstance(form_field, expected)
         self.assertEqual(response.context.get('post').text, self.post.text)
-        last = Post.objects.latest('id')
-        self.assertEqual(last.group, self.post.group)
-        self.assertEqual(last.text, self.post.text)
-        self.assertEqual(last.author, self.post.author)
-        self.assertFalse(Post.objects.filter(group=self.group_new.id).exists())
 
     def test_post_accessory_group(self):
         self.assertTrue(Post.objects.filter(group=self.group.id).exists())
