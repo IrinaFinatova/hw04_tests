@@ -1,9 +1,9 @@
 from django.shortcuts import render, get_object_or_404
-from .models import Post, Group, User
+from .models import Post, Group, User, Comment
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import redirect
-from .forms import PostForm
+from .forms import PostForm, CommentForm
 
 NUMBER_OF_POSTS_PER_PAGE = 10
 
@@ -48,14 +48,18 @@ def profile(request, username):
 def post_detail(request, post_id):
     template = 'posts/post_detail.html'
     post = get_object_or_404(Post, pk=post_id)
-    context = {'post': post}
+    form = CommentForm(request.POST or None)
+    comments = post.comments.all()
+    context = {'post': post,
+               'comments': comments,
+               'form': form}
     return render(request, template, context)
 
 
 @login_required
 def post_create(request):
     template = 'posts/create_post.html'
-    form = PostForm(request.POST or None)
+    form = PostForm(request.POST or None, files=request.FILES or None)
     context = {'form': form}
     if form.is_valid():
         post = form.save(commit=False)
@@ -79,3 +83,13 @@ def post_edit(request, post_id):
                'post': post,
                'is_edit': True}
     return render(request, template, context)
+
+@login_required
+def add_comment(request, post_id):
+    form = CommentForm(request.POST or None)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.author = request.user
+        comment.post = post
+        comment.save()
+    return redirect('posts:post_detail', post_id=post_id)

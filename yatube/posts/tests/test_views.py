@@ -1,12 +1,20 @@
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django import forms
 from ..models import Group, Post
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+import shutil
+import tempfile
 
 User = get_user_model()
 
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
+
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostViewTest(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -24,9 +32,24 @@ class PostViewTest(TestCase):
         cls.group_new = Group.objects.create(title='тестовая группа 2',
                                              slug='test_slag_two',
                                              description='Тестовое группы 2')
+        cls.small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=cls.small_gif,
+            content_type='image/gif')
         cls.post = Post.objects.create(author=cls.author,
                                        text='тестовый пост достаточно длинный',
-                                       group=cls.group)
+                                       group=cls.group,
+                                       image=cls.uploaded)
+
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def index_post_detail_profile_pages_show_correct_context(self):
         """Шаблон главной страницы, страницы group_list и страницы profile
@@ -41,6 +64,7 @@ class PostViewTest(TestCase):
             self.assertEqual(first_obj.author, self.post.author)
             self.assertEqual(first_obj.text, self.post.text)
             self.assertEqual(first_obj.group, self.post.group)
+            self.assertEqual(first_obj.image, self.post.image)
 
     def test_post_detail_page_show_correct_context(self):
         """Шаблон task_detail сформирован с правильным контекстом."""
@@ -51,6 +75,7 @@ class PostViewTest(TestCase):
         self.assertEqual(response.group, self.post.group)
         self.assertEqual(response.text, self.post.text)
         self.assertEqual(response.author, self.post.author)
+        self.assertEqual(response.image, self.post.image)
 
     def test_create_page_show_correct_context(self):
         """Шаблон create сформирован с правильным контекстом."""
