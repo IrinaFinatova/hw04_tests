@@ -2,7 +2,7 @@ from posts.forms import PostForm
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from ..models import Group, Post
+from ..models import Group, Post, Comment
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 import shutil
@@ -21,15 +21,22 @@ class PostCreateFormTests(TestCase):
         cls.author = User.objects.create_user(username='auth')
         cls.authorized_client = Client()
         cls.authorized_client.force_login(cls.author)
+        cls.user = User.objects.create_user(username='hasnoname')
+        cls.client_not_author = Client()
+        cls.client_not_author.force_login(cls.user)
         cls.group = Group.objects.create(title='тестовая группа',
                                          slug='test_slag',
                                          description='Тестовое описание')
         cls.post = Post.objects.create(author=cls.author,
                                        text='тестовый текст',
                                        group=cls.group)
+        cls.comment = Comment.objects.create(author=cls.user,
+                                             post=cls.post,
+                                             text='текстовый комментарий')
         cls.group_new = Group.objects.create(title='тестовая группа 2',
                                              slug='test_slag_two',
                                              description='Тестовое группы 2')
+
         cls.form = PostForm()
 
     @classmethod
@@ -98,3 +105,21 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(editable.text, 'тестовый текст новый')
         self.assertEqual(editable.author, self.post.author)
         self.assertFalse(Post.objects.filter(group=self.group_new.id).exists())
+
+    def test_add_comment(self):
+        """Валидная форма создает запись в Comment."""
+        comments_count = Comment.objects.count()
+        form_data = {'text': 'текст комментария'}
+        response = self.client_not_author.post(
+            reverse('posts:add_comment', kwargs={'post_id': self.post.id}),
+            data=form_data,
+            follow=True)
+        self.assertRedirects(response,
+                             reverse('posts:post_detail',
+                                     kwargs={'post_id': self.post.id}))
+        self.assertEqual(Comment.objects.count(), comments_count + 1)
+        self.assertTrue(Comment.objects.filter(text='текст комментария').exists())
+        last = Comment.objects.latest('created')
+        self.assertEqual(last.text, 'текст комментария')
+        self.assertEqual(last.author, self.comment.author)
+        self.assertEqual(last.post, self.comment.post)

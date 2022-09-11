@@ -1,9 +1,10 @@
-from django.shortcuts import render, get_object_or_404
-from .models import Post, Group, User, Comment
+from django.shortcuts import render, get_object_or_404, get_list_or_404
+from .models import Post, Group, User, Follow
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import redirect
 from .forms import PostForm, CommentForm
+from django.views.decorators.cache import cache_page
 
 NUMBER_OF_POSTS_PER_PAGE = 10
 
@@ -26,7 +27,7 @@ def index(request):
 def group_posts(request, slug):
     template = 'posts/group_list.html'
     group = get_object_or_404(Group, slug=slug)
-    posts = group.posts.select_related('author')
+    posts = group.posts.select_related('author', 'group')
     page_obj = paginator_page(request, posts)
     context = {'group': group,
                'posts': posts,
@@ -49,7 +50,7 @@ def post_detail(request, post_id):
     template = 'posts/post_detail.html'
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
-    comments = post.comments.all()
+    comments = post.comments.select_related('author')
     context = {'post': post,
                'comments': comments,
                'form': form}
@@ -84,8 +85,10 @@ def post_edit(request, post_id):
                'is_edit': True}
     return render(request, template, context)
 
+
 @login_required
 def add_comment(request, post_id):
+    post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
     if form.is_valid():
         comment = form.save(commit=False)
@@ -93,3 +96,15 @@ def add_comment(request, post_id):
         comment.post = post
         comment.save()
     return redirect('posts:post_detail', post_id=post_id)
+
+@login_required
+def follow_index(request):
+    # информация о текущем пользователе доступна в переменной request.user
+    user = request.user
+    authors = get_list_or_404(Follow, user=user)
+    posts = []
+    for author in authors:
+        posts += author.posts.all()
+    context = {'posts': posts}
+    return render(request, 'posts/follow.html', context)
+

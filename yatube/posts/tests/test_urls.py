@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, Client
-from ..models import Group, Post
+from ..models import Group, Post, Comment
 from http import HTTPStatus
 from django.urls import reverse
 
@@ -12,18 +12,24 @@ class PostURLTest(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.guest_client = Client()
-        cls.user = User.objects.create_user(username='hasnoname')
-        cls.client_not_author = Client()
-        cls.client_not_author.force_login(cls.user)
         cls.author = User.objects.create_user(username='auth')
         cls.authorized_client = Client()
         cls.authorized_client.force_login(cls.author)
+        cls.user = User.objects.create_user(username='hasnoname')
+        cls.client_not_author = Client()
+        cls.client_not_author.force_login(cls.user)
         cls.group = Group.objects.create(title='тестовая группа',
                                          slug='test_slag',
                                          description='Тестовое описание')
         cls.post = Post.objects.create(author=cls.author,
-                                       text='тестовый пост достаточно длинный',
+                                       text='тестовый текст',
                                        group=cls.group)
+        cls.comment = Comment.objects.create(author=cls.user,
+                                             post=cls.post,
+                                             text='текстовый комментарий')
+        cls.group_new = Group.objects.create(title='тестовая группа 2',
+                                             slug='test_slag_two',
+                                             description='Тестовое группы 2')
 
     def test_common_url_exists_at_desired_location(self):
         """Проверка общедоступных адресов страниц страниц /, /group/<slug>/,
@@ -54,10 +60,21 @@ class PostURLTest(TestCase):
             reverse('posts:post_edit', kwargs={'post_id': self.post.id}))
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
+    def test_for_authorized_url_comments_exists_at_desired_location(self):
+        """Проверка переадресации /posts/<post_id>/comment/
+        при оставлении комментария на  posts/post_id/
+        авторизованному пользователю."""
+        response_comment_on_post_id = self.client_not_author.get(
+            reverse('posts:add_comment', kwargs={'post_id': self.post.id}))
+        self.assertRedirects(response_comment_on_post_id,
+                             reverse('posts:post_detail',
+                                     kwargs={'post_id': self.post.id}))
+
     def test_for_un_existing_page(self):
-        """Проверка недоступности несуществующей страницы"""
+        """Проверка недоступности и шаблона несуществующей страницы"""
         response = self.guest_client.get('/un_existing_page/')
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertTemplateUsed(response, 'core/404.html')
 
     def test_url_redirect_create_and_edit(self):
         """Проверка переадресации неавтора поста

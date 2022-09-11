@@ -2,17 +2,16 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django import forms
-from ..models import Group, Post
+from ..models import Group, Post, Comment
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 import shutil
 import tempfile
 
-User = get_user_model()
-
-
+NUMBER_OF_POSTS_PER_PAGE = 10
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
+User = get_user_model()
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostViewTest(TestCase):
@@ -48,7 +47,14 @@ class PostViewTest(TestCase):
                                        text='тестовый пост достаточно длинный',
                                        group=cls.group,
                                        image=cls.uploaded)
+        cls.comment = Comment.objects.create(author=cls.user,
+                                             post=cls.post,
+                                             text='текстовый комментарий')
 
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def index_post_detail_profile_pages_show_correct_context(self):
@@ -110,7 +116,8 @@ class PostViewTest(TestCase):
         """Тестируем пагинатор на страницах index, group_list и profile"""
         Post.objects.bulk_create(Post(author=self.author,
                                       text=f'пост {i}',
-                                      group=self.group) for i in range(12))
+                                      group=self.group,
+                                      image=self.post.image) for i in range(12))
         pages_list = [reverse('posts:index'),
                       reverse('posts:group_list',
                               kwargs={'slug': self.group.slug}),
@@ -118,7 +125,8 @@ class PostViewTest(TestCase):
                               kwargs={'username': self.author.username})]
         for page in pages_list:
             response = self.authorized_client.get(page)
-            self.assertEqual(len(response.context['page_obj']), 10)
+            self.assertEqual(len(response.context['page_obj']),
+                             NUMBER_OF_POSTS_PER_PAGE)
         for page in pages_list:
             response = self.authorized_client.get(page + '?page=2')
             self.assertEqual(len(response.context['page_obj']), 3)

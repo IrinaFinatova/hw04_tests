@@ -22,7 +22,8 @@ class Post(models.Model):
     text = models.TextField(verbose_name='Текст поста',
                             help_text='Введите текст поста')
     pub_date = models.DateTimeField(auto_now_add=True,
-                                    verbose_name='Дата публикации поста')
+                                    verbose_name='Дата публикации поста',
+                                    db_index=True)
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -68,4 +69,33 @@ class Comment(models.Model):
     text = models.TextField(verbose_name='Текст комментария',
                             help_text='Ваши комменты')
     created = models.DateTimeField(auto_now_add=True,
-                                   verbose_name='Дата комментария')
+                                   verbose_name='Дата комментария',
+                                   db_index=True)
+
+    def __str__(self):
+        return self.text
+
+    class Meta:
+        verbose_name = 'Коммент'
+        verbose_name_plural = 'Комменты'
+        ordering = ['-created']
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='follower',
+        verbose_name='Подписчик'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='following',
+        verbose_name='Подписка'
+    )
+
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+        ordering = ['author']
