@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.db.models import UniqueConstraint
 
 User = get_user_model()
 
@@ -58,7 +59,7 @@ class Comment(models.Model):
         Post,
         on_delete=models.CASCADE,
         related_name='comments',
-        verbose_name='Комментарии',
+        verbose_name='Пост',
         help_text='Ваши комментарии')
     author = models.ForeignKey(
         User,
@@ -76,8 +77,8 @@ class Comment(models.Model):
         return self.text
 
     class Meta:
-        verbose_name = 'Коммент'
-        verbose_name_plural = 'Комменты'
+        verbose_name = 'Комментарий'
+        verbose_name_plural = 'Комментарии'
         ordering = ['-created']
 
 
@@ -92,10 +93,11 @@ class Follow(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='following',
-        verbose_name='Подписка'
+        verbose_name='Избранные авторы'
     )
 
     class Meta:
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
-        ordering = ['author']
+        ordering = ['user']
+        unique_together = ('user', 'author')
