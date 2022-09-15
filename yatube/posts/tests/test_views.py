@@ -1,71 +1,21 @@
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, override_settings
+from django.test import override_settings
 from django.urls import reverse
 from django import forms
-from ..models import Group, Post, Comment
-from django.conf import settings
-from django.core.files.uploadedfile import SimpleUploadedFile
-import shutil
-import tempfile
-
-NUMBER_OF_POSTS_PER_PAGE = 10
-TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
+from ..models import Post, Follow
+from .MyTestCase import MyTestCase, NUMBER_OF_POSTS_PER_PAGE, TEMP_MEDIA_ROOT
+from django.core.cache import cache
 
 User = get_user_model()
 
+
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
-class PostViewTest(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.guest_client = Client()
-        cls.user = User.objects.create_user(username='hasnoname')
-        cls.client_not_author = Client()
-        cls.client_not_author.force_login(cls.user)
-        cls.author = User.objects.create_user(username='auth')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.author)
-        cls.group = Group.objects.create(title='тестовая группа',
-                                         slug='test_slag',
-                                         description='Тестовое описание')
-        cls.group_new = Group.objects.create(title='тестовая группа 2',
-                                             slug='test_slag_two',
-                                             description='Тестовое группы 2')
-        cls.small_gif = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
-        cls.uploaded = SimpleUploadedFile(
-            name='small.gif',
-            content=cls.small_gif,
-            content_type='image/gif')
-        cls.post = Post.objects.create(author=cls.author,
-                                       text='тестовый пост достаточно длинный',
-                                       group=cls.group,
-                                       image=cls.uploaded)
-        cls.comment = Comment.objects.create(author=cls.user,
-                                             post=cls.post,
-                                             text='текстовый комментарий')
-
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
-
-    def index_post_detail_profile_pages_show_correct_context(self):
-        """Шаблон главной страницы, страницы group_list и страницы profile
+class PostViewTest(MyTestCase):
+    def index_group_profile_follow_pages_show_correct_context(self):
+        """Шаблон главной страницы, страницы group_list,
+         страницы profile, страницы follow
          сформированы с правильным контекстом."""
-        pages_list = [reverse('posts:index'),
-                      reverse('posts:group_list',
-                              kwargs={'slug': self.post.group.slug}),
-                      reverse('posts:profile',
-                              kwargs={'username': self.post.author})]
-        for page in pages_list:
+        for page in self.pages_list:
             first_obj = self.authorized_client.get(page).context['page_obj'][0]
             self.assertEqual(first_obj.author, self.post.author)
             self.assertEqual(first_obj.text, self.post.text)
@@ -109,24 +59,34 @@ class PostViewTest(TestCase):
         self.assertEqual(response.context.get('post').text, self.post.text)
 
     def test_post_accessory_group(self):
+        """ Пост принадлежит правильной группе."""
         self.assertTrue(Post.objects.filter(group=self.group.id).exists())
         self.assertFalse(Post.objects.filter(group=self.group_new.id).exists())
 
-    def test_pagintor_index_group_list_profile(self):
-        """Тестируем пагинатор на страницах index, group_list и profile"""
+    def test_cache(self):
+        cache_post = Post.objects.create(
+            author=self.author, text='пост для кеша')
+        response = self.authorized_client.get(reverse('posts:index'))
+        self.assertTrue(cache_post in response.context['page_obj'])
+        cache_post.delete()
+        self.assertIn(cache_post.text, response.content.decode())
+        cache.clear()
+        response = self.authorized_client.get(reverse('posts:index'))
+        self.assertNotIn(cache_post.text, response.content.decode())
+
+    def test_pagintor_index_group_list_profile_follow(self):
+        """Тестируем пагинатор на страницах index,
+         group_list, profile и follow."""
         Post.objects.bulk_create(Post(author=self.author,
                                       text=f'пост {i}',
                                       group=self.group,
-                                      image=self.post.image) for i in range(12))
-        pages_list = [reverse('posts:index'),
-                      reverse('posts:group_list',
-                              kwargs={'slug': self.group.slug}),
-                      reverse('posts:profile',
-                              kwargs={'username': self.author.username})]
-        for page in pages_list:
-            response = self.authorized_client.get(page)
-            self.assertEqual(len(response.context['page_obj']),
-                             NUMBER_OF_POSTS_PER_PAGE)
-        for page in pages_list:
-            response = self.authorized_client.get(page + '?page=2')
-            self.assertEqual(len(response.context['page_obj']), 3)
+                                      image=self.post.image)
+                                 for i in range(12))
+        self.follow = Follow.objects.create(user=self.user, author=self.author)
+        for page in self.pages_list:
+            with self.subTest(page=page):
+                response_first = self.client_not_author.get(page)
+                self.assertEqual(len(response_first.context['page_obj']),
+                                 NUMBER_OF_POSTS_PER_PAGE)
+                response_second = self.client_not_author.get(page + '?page=2')
+                self.assertEqual(len(response_second.context['page_obj']), 3)

@@ -1,69 +1,23 @@
-from posts.forms import PostForm
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, override_settings
+from django.test import override_settings
 from django.urls import reverse
-from ..models import Group, Post, Comment
-from django.conf import settings
-from django.core.files.uploadedfile import SimpleUploadedFile
-import shutil
-import tempfile
+from ..forms import PostForm
+from ..models import Post, Comment, Follow
+from .MyTestCase import MyTestCase, TEMP_MEDIA_ROOT
 
 User = get_user_model()
 
-TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
-
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
-class PostCreateFormTests(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.author = User.objects.create_user(username='auth')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.author)
-        cls.user = User.objects.create_user(username='hasnoname')
-        cls.client_not_author = Client()
-        cls.client_not_author.force_login(cls.user)
-        cls.group = Group.objects.create(title='тестовая группа',
-                                         slug='test_slag',
-                                         description='Тестовое описание')
-        cls.post = Post.objects.create(author=cls.author,
-                                       text='тестовый текст',
-                                       group=cls.group)
-        cls.comment = Comment.objects.create(author=cls.user,
-                                             post=cls.post,
-                                             text='текстовый комментарий')
-        cls.group_new = Group.objects.create(title='тестовая группа 2',
-                                             slug='test_slag_two',
-                                             description='Тестовое группы 2')
-
-        cls.form = PostForm()
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
-
+class PostCreateFormTests(MyTestCase):
     def test_create_post(self):
         """Валидная форма создает запись в Post."""
+        self.form = PostForm()
         posts_count = Post.objects.count()
-        small_gif = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
-        uploaded = SimpleUploadedFile(
-            name='small.gif',
-            content=small_gif,
-            content_type='image/gif'
-        )
         form_data = {
             'text': 'тестовый текст созданный',
             'group': self.group.id,
-            'image': uploaded,
+            'image': self.uploaded,
         }
         response = self.authorized_client.post(
             reverse('posts:post_create'),
@@ -74,12 +28,12 @@ class PostCreateFormTests(TestCase):
                               kwargs={'username': self.author}))
         self.assertEqual(Post.objects.count(), posts_count + 1)
         self.assertTrue(Post.objects.filter(text='тестовый текст созданный',
-                                            group=self.group.id,
-                                            image='posts/small.gif').exists())
+                                            group=self.group.id).exists())
         last = Post.objects.latest('pub_date')
         self.assertEqual(last.group, self.post.group)
         self.assertEqual(last.text, 'тестовый текст созданный')
         self.assertEqual(last.author, self.post.author)
+        self.assertIsNotNone(last.image)
 
     def test_edit_post(self):
         """Форма загружает пост с номером id и позволяет его редактировать"""
@@ -118,8 +72,39 @@ class PostCreateFormTests(TestCase):
                              reverse('posts:post_detail',
                                      kwargs={'post_id': self.post.id}))
         self.assertEqual(Comment.objects.count(), comments_count + 1)
-        self.assertTrue(Comment.objects.filter(text='текст комментария').exists())
+        self.assertTrue(Comment.objects.filter(
+            text='текст комментария').exists())
         last = Comment.objects.latest('created')
         self.assertEqual(last.text, 'текст комментария')
         self.assertEqual(last.author, self.comment.author)
         self.assertEqual(last.post, self.comment.post)
+
+    def test_create_follower(self):
+        """ Создается подписка в Follow """
+        follow_count = Follow.objects.count()
+        response = self.client_not_author.post(
+            reverse('posts:profile_follow', kwargs={'username': self.author}),
+            follow=True)
+        self.assertRedirects(response, reverse(
+            'posts:profile', kwargs={'username': self.author}))
+        self.assertEqual(Follow.objects.count(), follow_count + 1)
+        self.assertTrue(Follow.objects.filter(
+            user=self.user, author=self.author).exists())
+        last = Follow.objects.latest('id')
+        self.assertEqual(last.user, self.user)
+        self.assertEqual(last.author, self.author)
+
+    def test_delete_follower(self):
+        """ Удаляется  подписка из Follow """
+        Follow.objects.create(user=self.user, author=self.author)
+        follow_count = Follow.objects.count()
+        response = self.client_not_author.post(
+            reverse('posts:profile_unfollow',
+                    kwargs={'username': self.author}),
+            follow=True)
+        self.assertRedirects(response,
+                             reverse('posts:profile',
+                                     kwargs={'username': self.author}))
+        self.assertEqual(Follow.objects.count(), follow_count - 1)
+        self.assertFalse(Follow.objects.filter(
+            user=self.author, author=self.user).exists())

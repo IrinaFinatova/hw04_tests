@@ -1,36 +1,15 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client
-from ..models import Group, Post, Comment
+from django.test import override_settings
 from http import HTTPStatus
 from django.urls import reverse
+from .MyTestCase import MyTestCase, TEMP_MEDIA_ROOT
+
 
 User = get_user_model()
 
 
-class PostURLTest(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.guest_client = Client()
-        cls.author = User.objects.create_user(username='auth')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.author)
-        cls.user = User.objects.create_user(username='hasnoname')
-        cls.client_not_author = Client()
-        cls.client_not_author.force_login(cls.user)
-        cls.group = Group.objects.create(title='тестовая группа',
-                                         slug='test_slag',
-                                         description='Тестовое описание')
-        cls.post = Post.objects.create(author=cls.author,
-                                       text='тестовый текст',
-                                       group=cls.group)
-        cls.comment = Comment.objects.create(author=cls.user,
-                                             post=cls.post,
-                                             text='текстовый комментарий')
-        cls.group_new = Group.objects.create(title='тестовая группа 2',
-                                             slug='test_slag_two',
-                                             description='Тестовое группы 2')
-
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
+class PostURLTest(MyTestCase):
     def test_common_url_exists_at_desired_location(self):
         """Проверка общедоступных адресов страниц страниц /, /group/<slug>/,
         /profile/<username>/, /post/<post_id>/."""
@@ -60,7 +39,14 @@ class PostURLTest(TestCase):
             reverse('posts:post_edit', kwargs={'post_id': self.post.id}))
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
-    def test_for_authorized_url_comments_exists_at_desired_location(self):
+    def test_authorized_url_follow_exists_at_desired_location(self):
+        """Проверка доступности адреса страницы
+        /follow/ авторизованному пользователю."""
+        response = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_for_authorized_url_comment_redirect(self):
         """Проверка переадресации /posts/<post_id>/comment/
         при оставлении комментария на  posts/post_id/
         авторизованному пользователю."""
@@ -104,7 +90,8 @@ class PostURLTest(TestCase):
             reverse('posts:post_create'): 'posts/create_post.html',
             reverse('posts:post_edit',
                     kwargs={'post_id': self.post.id}):
-                'posts/create_post.html'}
+                'posts/create_post.html',
+            reverse('posts:follow_index'): 'posts/follow.html'}
         for reverse_name, template in PAGES_TEMPLATES_POSTS.items():
             with self.subTest(reverse_name=reverse_name):
                 response = self.authorized_client.get(reverse_name)
